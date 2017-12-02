@@ -1,6 +1,0 @@
-[package]
-name = "astrogoat"
-version = "0.1.0"
-authors = ["Hormoz K <hkheradm@gmail.com>"]
-
-[dependencies]
