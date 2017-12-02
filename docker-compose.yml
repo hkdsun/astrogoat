@@ -13,12 +13,10 @@ services:
       --enforce-gtid-consistency=ON
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
-      --report-host=127.0.0.1
-      --report-port=22101
     environment:
       MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
     ports:
-      - "22001:3306"
+      - "21001:3306" # master
 
   mysql-s1:
     build: ./docker/db
@@ -33,9 +31,12 @@ services:
       --enforce-gtid-consistency=ON
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
-      --report-host=127.0.0.1
-      --report-port=22201
     environment:
       MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+
+  toxiproxy:
+    image: shopify/toxiproxy
     ports:
-      - "22002:3306"
+      - "22001:22001" # master
+      - "22002:22002" # slave
+      - "28474:8474"

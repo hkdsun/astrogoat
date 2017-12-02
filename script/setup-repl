@@ -1,8 +1,13 @@
 #!/usr/bin/env ruby
 
+require 'toxiproxy'
+
+PROJECT_NAME = "freethegoat"
+
 class Mysql
   REPL_USER = "repl_user"
   CONTAINER_PORT = 3306
+  TOXIPROXY_HOST = "#{PROJECT_NAME}_toxiproxy_1"
 
   def initialize(docker_name, port, master: false, children: [])
     @docker_name = docker_name
@@ -13,6 +18,10 @@ class Mysql
 
   def docker_name
     @docker_name
+  end
+
+  def port
+    @port
   end
 
   def setup_repl_chain
@@ -82,8 +91,8 @@ class Mysql
   end
 
   def start_slaving(recursive: true, visited: nil)
-    visit_slaves do |s, child|
-      child.exec_cmd("CHANGE master TO master_host=\"#{s.docker_name}\", master_port=#{CONTAINER_PORT}, master_user=\"#{REPL_USER}\", master_password=\"#{REPL_USER}\"")
+    visit_slaves do |_self, child|
+      child.exec_cmd("CHANGE master TO master_host=\"#{TOXIPROXY_HOST}\", master_port=#{_self.port}, master_user=\"#{REPL_USER}\", master_password=\"#{REPL_USER}\", master_connect_retry=2")
       child.exec_cmd("START SLAVE")
       raise RuntimeError, "Slave did not start replicating" unless child.exec_cmd("SHOW SLAVE STATUS\\G") != ""
     end
@@ -94,7 +103,7 @@ class Mysql
   end
 
   def exec_cmd_in_container(cmd)
-    output = `docker exec -it shheartbeat_#{@docker_name}_1 #{cmd}`
+    output = `docker exec -it #{PROJECT_NAME}_#{@docker_name}_1 #{cmd}`
     [output, $?.success?]
   end
 
@@ -112,10 +121,25 @@ class Mysql
 end
 
 def setup_toxiproxy
+  Toxiproxy.host = "http://127.0.0.1:28474"
 
+  Toxiproxy.populate([
+    {
+      name: "mysql_master",
+      listen: "0.0.0.0:22001",
+      upstream: "#{PROJECT_NAME}_mysql-m1_1:3306",
+    }, {
+      name: "mysql_slave",
+      listen: "0.0.0.0:22002",
+      upstream: "#{PROJECT_NAME}_mysql-s1_1:3306",
+    }
+  ])
+
+  Toxiproxy[:mysql_master].toxic(:latency, latency: 20).toxics.each(&:save)
+  Toxiproxy[:mysql_master].toxic(:bandwidth, rate: 10).toxics.each(&:save)
 end
 
-def main
+def setup_repl
   slave = Mysql.new("mysql-s1", 22002)
   master = Mysql.new("mysql-m1", 22001, master: true, children: [slave])
 
@@ -129,6 +153,11 @@ def main
   master.enable_pt_heartbeat
 
   slave.set_to_readonly
+end
+
+def main
+  setup_toxiproxy
+  setup_repl unless ARGV[0] == "toxiproxy"
 end
 
 main
