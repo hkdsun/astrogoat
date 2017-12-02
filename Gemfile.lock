@@ -1,0 +1,13 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    toxiproxy (1.0.2)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  toxiproxy
+
+BUNDLED WITH
+   1.12.5
