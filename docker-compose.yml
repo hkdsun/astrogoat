@@ -40,3 +40,37 @@ services:
       - "22001:22001" # master
       - "22002:22002" # slave
       - "28474:8474"
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+
+  mysqld_exporter-m1:
+    image: prom/mysqld-exporter
+    command: ["-collect.heartbeat=true", "-collect.heartbeat.database=meta", "-collect.heartbeat.table=heartbeat"]
+    ports:
+      - "9104:9104"
+    environment:
+      DATA_SOURCE_NAME: "root:@(astrogoat_mysql-m1_1:3306)/"
+
+  mysqld_exporter-s1:
+    image: prom/mysqld-exporter
+    command: ["-collect.heartbeat=true", "-collect.heartbeat.database=meta", "-collect.heartbeat.table=heartbeat"]
+    ports:
+      - "9105:9104"
+    environment:
+      DATA_SOURCE_NAME: "root:@(astrogoat_mysql-s1_1:3306)/"
+
+  grafana:
+    image: grafana/grafana:3.0.0-beta7
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=pass
+    volumes:
+      - ./grafana.db:/var/lib/grafana/grafana.db
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
