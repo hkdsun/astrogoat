@@ -46,7 +46,7 @@ class Mysql
   end
 
   def enable_pt_heartbeat
-    _, success = exec_cmd_in_container("pt-heartbeat -u root --update --daemonize --database meta --table heartbeat --create-table")
+    _, success = exec_cmd_in_container("pt-heartbeat -u root --update --interval 0.05 --daemonize --database meta --table heartbeat --create-table")
     raise RuntimeError, "Failed to enable pt-heartbeat in master container" unless success
   end
 
