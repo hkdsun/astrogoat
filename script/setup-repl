@@ -2,7 +2,7 @@
 
 require 'toxiproxy'
 
-PROJECT_NAME = "freethegoat"
+PROJECT_NAME = "astrogoat"
 
 class Mysql
   REPL_USER = "repl_user"
