@@ -1,0 +1,134 @@
+#!/usr/bin/env ruby
+
+class Mysql
+  REPL_USER = "repl_user"
+  CONTAINER_PORT = 3306
+
+  def initialize(docker_name, port, master: false, children: [])
+    @docker_name = docker_name
+    @port = port
+    @is_master = master
+    @children = children
+  end
+
+  def docker_name
+    @docker_name
+  end
+
+  def setup_repl_chain
+    stop_slaving
+    start_slaving
+  end
+
+  def master?
+    @is_master
+  end
+
+  def add_slave(mysql)
+    @children << mysql
+  end
+
+  def set_to_readonly
+    exec_cmd("SET GLOBAL read_only=1")
+  end
+
+  def create_meta_db
+    exec_cmd("CREATE DATABASE IF NOT EXISTS meta")
+  end
+
+  def enable_pt_heartbeat
+    _, success = exec_cmd_in_container("pt-heartbeat -u root --update --daemonize --database meta --table heartbeat --create-table")
+    raise RuntimeError, "Failed to enable pt-heartbeat in master container" unless success
+  end
+
+  def await_mysql
+    puts "waiting for mysql to start"
+    loop do
+      break if `mysqladmin -h 127.0.0.1 -P #{@port} -u root ping 2>/dev/null`.include?("alive")
+      print(".")
+      sleep 1
+    end
+    print("\nDONE!\n")
+  end
+
+  def create_repl_user
+    return if repl_user_exist?
+
+    puts "Creating replication user in #{@docker_name}"
+
+    puts exec_cmd("CREATE USER #{REPL_USER} IDENTIFIED BY \"#{REPL_USER}\"", verbose: true)
+    puts exec_cmd("GRANT REPLICATION SLAVE ON *.* TO #{REPL_USER}", verbose: true)
+    puts exec_cmd("RESET MASTER", verbose: true)
+    puts exec_cmd("GRANT SELECT ON performance_schema.global_variables TO #{REPL_USER}", verbose: true)
+    puts exec_cmd("GRANT SELECT ON performance_schema.session_variables TO #{REPL_USER}", verbose: true)
+
+    puts "Replication user created successfully"
+  end
+
+  def visit_slaves(recursive: true, visited: nil, &blk)
+    visited ||= Hash.new(false)
+    visited[self] = true
+
+    @children.each do |child|
+      blk.call(self, child)
+      child.visit_slaves(visited: visited, &blk) if recursive && !visited[child]
+    end
+  end
+
+  def stop_slaving
+    visit_slaves do |_, child|
+      child.exec_cmd("STOP SLAVE")
+    end
+  end
+
+  def start_slaving(recursive: true, visited: nil)
+    visit_slaves do |s, child|
+      child.exec_cmd("CHANGE master TO master_host=\"#{s.docker_name}\", master_port=#{CONTAINER_PORT}, master_user=\"#{REPL_USER}\", master_password=\"#{REPL_USER}\"")
+      child.exec_cmd("START SLAVE")
+      raise RuntimeError, "Slave did not start replicating" unless child.exec_cmd("SHOW SLAVE STATUS\\G") != ""
+    end
+  end
+
+  def repl_user_exist?
+    exec_cmd("SELECT user FROM mysql.user WHERE user=\"repl_user\"", options: ["-BN"]) != ""
+  end
+
+  def exec_cmd_in_container(cmd)
+    output = `docker exec -it shheartbeat_#{@docker_name}_1 #{cmd}`
+    [output, $?.success?]
+  end
+
+  def exec_cmd(cmd, verbose: false, options: [])
+    base = "mysql -u root -h 127.0.0.1 -P #{@port}#{verbose ? " -v" : ""}"
+    options.each do |opt|
+      base += " #{opt}"
+    end
+
+    cmd = "#{base} -e '#{cmd}'"
+
+    puts "+ #{cmd}"
+    `#{cmd}`
+  end
+end
+
+def setup_toxiproxy
+
+end
+
+def main
+  slave = Mysql.new("mysql-s1", 22002)
+  master = Mysql.new("mysql-m1", 22001, master: true, children: [slave])
+
+  [master, slave].each do |db|
+    db.await_mysql
+    db.create_repl_user
+  end
+
+  master.setup_repl_chain
+  master.create_meta_db
+  master.enable_pt_heartbeat
+
+  slave.set_to_readonly
+end
+
+main
