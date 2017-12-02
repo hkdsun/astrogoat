@@ -136,7 +136,7 @@ def setup_toxiproxy
   ])
 
   Toxiproxy[:mysql_master].toxic(:latency, latency: 20).toxics.each(&:save)
-  Toxiproxy[:mysql_master].toxic(:bandwidth, rate: 10).toxics.each(&:save)
+  Toxiproxy[:mysql_master].toxic(:bandwidth, rate: 100).toxics.each(&:save)
 end
 
 def setup_repl
