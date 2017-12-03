@@ -51,6 +51,10 @@ func main() {
 		panic("Failed to connect to db")
 	}
 
+	naiveThrottle := goat.NaiveThrottle{
+		DB: db,
+	}
+
 	generators := []goat.LoadGenerator{
 		&goat.SimpleLoadGenerator{
 			QueryFunc: insertLoad,
@@ -60,11 +64,12 @@ func main() {
 	job := &goat.Job{
 		JobConfig: &goat.JobConfig{
 			SetupFunc:      createTestDbAndTable,
-			Routines:       16,
+			Routines:       100,
 			LoadGenerators: generators,
 			Duration:       30 * time.Second,
 			Interval:       20 * time.Millisecond,
 			DB:             db,
+			Throttler:      naiveThrottle,
 		},
 	}
 

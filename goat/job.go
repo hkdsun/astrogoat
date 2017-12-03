@@ -17,6 +17,7 @@ type JobConfig struct {
 	Interval       time.Duration
 	DB             *sql.DB
 	SetupFunc      func(*sql.DB) error
+	Throttler      Throttler
 }
 
 type Job struct {
