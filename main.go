@@ -44,15 +44,41 @@ func createTestDbAndTable(db *sql.DB) error {
 	return nil
 }
 
+func naiveThrottle() *goat.NaiveThrottle {
+	slaveConfig := mysqlConfig("root", "", "127.0.0.1:22002")
+	slaveDb, err := sql.Open("mysql", slaveConfig.FormatDSN())
+	if err != nil {
+		panic("Failed to connect to slaveDb")
+	}
+
+	naiveThrottle := &goat.NaiveThrottle{
+		DB: slaveDb,
+	}
+
+	go naiveThrottle.Run()
+
+	return naiveThrottle
+}
+
+func pidThrottle() *goat.PidThrottle {
+	slaveConfig := mysqlConfig("root", "", "127.0.0.1:22002")
+	slaveDb, err := sql.Open("mysql", slaveConfig.FormatDSN())
+	if err != nil {
+		panic("Failed to connect to slaveDb")
+	}
+
+	pidThrottle := goat.NewPidThrottle(slaveDb)
+
+	go pidThrottle.Run()
+
+	return pidThrottle
+}
+
 func main() {
 	dbConfig := mysqlConfig("root", "", "127.0.0.1:21001")
 	db, err := sql.Open("mysql", dbConfig.FormatDSN())
 	if err != nil {
 		panic("Failed to connect to db")
-	}
-
-	naiveThrottle := goat.NaiveThrottle{
-		DB: db,
 	}
 
 	generators := []goat.LoadGenerator{
@@ -64,12 +90,12 @@ func main() {
 	job := &goat.Job{
 		JobConfig: &goat.JobConfig{
 			SetupFunc:      createTestDbAndTable,
-			Routines:       100,
+			Routines:       32,
 			LoadGenerators: generators,
-			Duration:       30 * time.Second,
-			Interval:       20 * time.Millisecond,
+			Duration:       60 * time.Second,
+			Interval:       100 * time.Millisecond,
 			DB:             db,
-			Throttler:      naiveThrottle,
+			Throttler:      pidThrottle(),
 		},
 	}
 

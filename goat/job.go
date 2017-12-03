@@ -22,6 +22,7 @@ type JobConfig struct {
 
 type Job struct {
 	*JobConfig
+	totalWrites int
 }
 
 func (j *Job) Run() error {
@@ -38,14 +39,25 @@ func (j *Job) Run() error {
 	for i := 0; i < j.Routines; i++ {
 		go func() {
 			defer wg.Done()
+
+			totalWrites := 0
+			defer func() {
+				j.totalWrites += totalWrites
+			}()
+
 			ctx, cancel := context.WithTimeout(context.Background(), j.Duration)
 			defer cancel()
+
 			for {
 				select {
 				case <-ctx.Done():
 					return
 				default:
 					j.runRandomLoadGenerator()
+
+					logrus.WithField("totalwrites", totalWrites).Info("load")
+					totalWrites += 1
+
 					time.Sleep(j.Interval)
 				}
 			}
@@ -53,11 +65,14 @@ func (j *Job) Run() error {
 	}
 	wg.Wait()
 
+	logrus.WithField("totalwrites", j.totalWrites).Info("done load")
+
 	return nil
 }
 
 func (j *Job) runRandomLoadGenerator() {
 	gen := rand.Intn(len(j.LoadGenerators))
+	j.Throttler.Call()
 	err := j.LoadGenerators[gen].Apply(j.DB)
 	if err != nil {
 		logrus.WithError(err).Error("could not apply load")
