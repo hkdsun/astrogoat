@@ -1,9 +1,10 @@
 # Astrogoat
 
-Astrogoat is a MySQL load simulation tool. It provides a sophisticated testing rig based on docker containers.
+Astrogoat is a MySQL replication lag throttling simulation tool. It provides a sophisticated testing rig based on docker containers so that you can easily experiment with different throttling strategies (e.g. tune a PID controller).
 
 # Components
 
+* Goat: the core logic. See `main.go` and `goat/` package
 * Replication cluster: simple master and slave percona mysql configuration
 * [Toxiproxy](https://github.com/shopify/toxiproxy): configurable network condition between the master and slave
 * [`pt-heartbeat`](https://www.percona.com/doc/percona-toolkit/LATEST/pt-heartbeat.html): used to monitor replication lag
@@ -34,7 +35,7 @@ bundle
 * Try putting some load on the database
 
 ```
-ruby hammer_db.rb
+go run main.go
 ```
 
 * Monitor replication lag with Grafana at `localhost:3000`
