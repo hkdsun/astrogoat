@@ -15,7 +15,7 @@ type PidThrottle struct {
 }
 
 func NewPidThrottle(db *sql.DB) *PidThrottle {
-	control := NewPIDController(-3.1, 1.5, 0.3)
+	control := NewPIDController(-3.1, 0, 0)
 	control.SetOutputLimits(0.0, 30000000.0)
 	control.Set(1000000)
 

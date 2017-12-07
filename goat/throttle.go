@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	cacheDuration      = 500 * time.Millisecond
-	unhealthyThreshold = 200000
+	cacheDuration      = 5000 * time.Millisecond
+	unhealthyThreshold = 3000000
 )
 
 type Throttler interface {

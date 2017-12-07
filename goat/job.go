@@ -62,6 +62,7 @@ func (j *Job) Run() error {
 				}
 			}
 		}()
+		time.Sleep(time.Duration(rand.Intn(500)) * time.Millisecond)
 	}
 	wg.Wait()
 

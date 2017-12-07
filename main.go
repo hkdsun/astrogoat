@@ -21,8 +21,8 @@ func mysqlConfig(user, password, addr string) *mysql.Config {
 }
 
 func insertLoad(db *sql.DB) (string, []interface{}) {
-	randId := rand.Intn(99999)
-	return "INSERT IGNORE INTO test.test VALUES(?)", []interface{}{randId}
+	randId := rand.Intn(9999999999)
+	return "INSERT IGNORE INTO test.test VALUES(NULL,?)", []interface{}{randId}
 }
 
 func createTestDbAndTable(db *sql.DB) error {
@@ -36,7 +36,7 @@ func createTestDbAndTable(db *sql.DB) error {
 		return err
 	}
 
-	_, err = db.Exec("CREATE TABLE IF NOT EXISTS test.test (id INT, PRIMARY KEY(id))")
+	_, err = db.Exec("CREATE TABLE IF NOT EXISTS test.test (id INT AUTO_INCREMENT, data INT, PRIMARY KEY(id))")
 	if err != nil {
 		return err
 	}
@@ -74,6 +74,26 @@ func pidThrottle() *goat.PidThrottle {
 	return pidThrottle
 }
 
+func slowStart() *goat.SlowStartThrottle {
+	slaveConfig := mysqlConfig("root", "", "127.0.0.1:22002")
+	slaveDb, err := sql.Open("mysql", slaveConfig.FormatDSN())
+	if err != nil {
+		panic("Failed to connect to slaveDb")
+	}
+
+	slowStartThrottle := &goat.SlowStartThrottle{
+		DB:               slaveDb,
+		CurrentSleep:     0 * time.Second,
+		BestSleep:        10 * time.Second,
+		IncreaseStepSize: 200 * time.Millisecond,
+		DecreaseStepSize: 50 * time.Millisecond,
+		LagThreshold:     500 * time.Millisecond,
+		CacheDuration:    2000 * time.Millisecond,
+	}
+
+	return slowStartThrottle
+}
+
 func main() {
 	dbConfig := mysqlConfig("root", "", "127.0.0.1:21001")
 	db, err := sql.Open("mysql", dbConfig.FormatDSN())
@@ -82,7 +102,8 @@ func main() {
 	}
 
 	generators := []goat.LoadGenerator{
-		&goat.SimpleLoadGenerator{
+		&goat.BatchGenerator{
+			BatchSize: 50,
 			QueryFunc: insertLoad,
 		},
 	}
@@ -90,12 +111,12 @@ func main() {
 	job := &goat.Job{
 		JobConfig: &goat.JobConfig{
 			SetupFunc:      createTestDbAndTable,
-			Routines:       32,
+			Routines:       9,
 			LoadGenerators: generators,
-			Duration:       60 * time.Second,
-			Interval:       100 * time.Millisecond,
+			Duration:       120 * time.Second,
+			Interval:       50 * time.Millisecond,
 			DB:             db,
-			Throttler:      pidThrottle(),
+			Throttler:      slowStart(),
 		},
 	}
 
