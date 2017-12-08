@@ -69,8 +69,6 @@ func pidThrottle() *goat.PidThrottle {
 
 	pidThrottle := goat.NewPidThrottle(slaveDb)
 
-	go pidThrottle.Run()
-
 	return pidThrottle
 }
 
@@ -86,9 +84,9 @@ func slowStart() *goat.SlowStartThrottle {
 		CurrentSleep:     0 * time.Second,
 		BestSleep:        10 * time.Second,
 		IncreaseStepSize: 200 * time.Millisecond,
-		DecreaseStepSize: 50 * time.Millisecond,
+		DecreaseStepSize: 20 * time.Millisecond,
 		LagThreshold:     500 * time.Millisecond,
-		CacheDuration:    2000 * time.Millisecond,
+		CacheDuration:    100 * time.Millisecond,
 	}
 
 	return slowStartThrottle
@@ -103,7 +101,7 @@ func main() {
 
 	generators := []goat.LoadGenerator{
 		&goat.BatchGenerator{
-			BatchSize: 50,
+			BatchSize: 10,
 			QueryFunc: insertLoad,
 		},
 	}
@@ -111,12 +109,12 @@ func main() {
 	job := &goat.Job{
 		JobConfig: &goat.JobConfig{
 			SetupFunc:      createTestDbAndTable,
-			Routines:       9,
+			Routines:       64,
 			LoadGenerators: generators,
 			Duration:       120 * time.Second,
 			Interval:       50 * time.Millisecond,
 			DB:             db,
-			Throttler:      slowStart(),
+			Throttler:      naiveThrottle(),
 		},
 	}
 

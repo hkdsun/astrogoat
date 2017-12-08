@@ -2,7 +2,6 @@ package goat
 
 import (
 	"database/sql"
-	"math/rand"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -15,8 +14,8 @@ type PidThrottle struct {
 }
 
 func NewPidThrottle(db *sql.DB) *PidThrottle {
-	control := NewPIDController(-3.1, 0, 0)
-	control.SetOutputLimits(0.0, 30000000.0)
+	control := NewPIDController(-0.25, -0.01, -0.2)
+	control.SetOutputLimits(0.0, 10000000.0)
 	control.Set(1000000)
 
 	throttle := &PidThrottle{
@@ -44,22 +43,16 @@ func (t *PidThrottle) update() {
 	// logrus.WithField("lag", lag).WithField("sleep", t.sleep).Info("updated lag")
 }
 
-func (t *PidThrottle) Run() {
-	for {
-		t.update()
-		time.Sleep(1 * time.Second)
-	}
-}
-
 func (t *PidThrottle) Call() {
 	// sleep(t.sleep * [0,1])
 	// randSleep := t.sleep.Seconds() * rand.Float64()
 	// s := time.Duration(randSleep) * time.Second
 
-	s := time.Duration(rand.Float64()*1000) * time.Millisecond
-	logrus.WithField("rand_sleep", s).WithField("sleep", t.sleep).Info("sleeping")
+	// s := time.Duration(rand.Float64()*1000) * time.Millisecond
+	// logrus.WithField("rand_sleep", s).WithField("sleep", t.sleep).Info("sleeping")
+	//
+	// time.Sleep(s)
 
-	time.Sleep(s)
-
+	t.update()
 	time.Sleep(t.sleep)
 }
